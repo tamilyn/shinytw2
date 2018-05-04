@@ -7,9 +7,16 @@ shinyUI(fluidPage(
     sidebarPanel(
        fileInput("rawCountFile", "Raw Count File"),
        fileInput("sampleDataFile", "Sample Data File"),
+       selectInput("distanceMethod", "Distance", distance_choices, selected = "jsd"),
+       uiOutput("strataFactor"),
        uiOutput("mainFactor"), 
-       selectInput("distanceMethod", "Distance", distance_choices, selected = "jsd")
+       numericInput("numPermutations", "Number of Permutations",
+                    value = 999, 
+                    min = 1, 
+                    max = 100000),
+       actionButton("runPermutations", "Run Permuations")
     ),
     
-    mainPanel(plotOutput("plot"))
+    mainPanel(plotOutput("plot"),
+              textOutput("statisticalTestsOutput")) #eeds to be isolated
 )))
