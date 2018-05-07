@@ -1,6 +1,8 @@
 
 shinyServer(function(input, output) {
 
+  values <- reactiveValues(sampleMainFactor = NULL)
+
   rawCountData <- reactive({
     infile = input$rawCountFile
     if(is.null(infile)) return(NULL)
@@ -50,24 +52,28 @@ shinyServer(function(input, output) {
      phyloseq( otu_table(asv.t, taxa_are_rows = F), sample_data(sdata))
   })
 
+
   physeqDataFactor <- reactive({
+     req(input$mainFactor)
 
      physeq <- physeqData()
      message(str_c("physeqDataFactor: ", input$mainFactor))
-     sample_data(physeq)[[input$mainFactor]] 
+
+     # save main factor 
+     values$sampleMainFactor = sample_data(physeq)[[input$mainFactor]]
 
      physeq
   })
 
   distanceMatrices <- reactive({
-    req(physeqData())
+    req(physeqDataFactor())
     
     physeq <- physeqDataFactor()
     dist_matrices = distance(physeq, method=c(input$distanceMethod))
   })
   
   output$plot <- renderPlot({
-     req(physeqData(), input$mainFactor)
+     req(physeqDataFactor(), input$mainFactor)
 
      physeq <- physeqDataFactor()
      dist_matrices = distance(physeq, method=c(input$distanceMethod))
@@ -84,38 +90,71 @@ shinyServer(function(input, output) {
      return(p)
   })
 
-  statisticalTestOutput <- reactive({
-    physeq <- physeqData()
-    sample_data(physeq)[[input$mainFactor]] 
+  observationCounts <- reactive({
+    physeq <- physeqDataFactor()
+
+    #zz <- table(sample_data(physeq)[[input$mainFactor]], useNA="ifany")
+
+    zz <- table(values$sampleMainFactor, useNA="ifany")
+    df <- data_frame(value=names(zz), count=zz)
+    df
+  })
+
+  output$observationCounts  <- renderTable({
+    observationCounts()
+  })
+
+  computeTres <- reactive({
+
+    physeq <- physeqDataFactor()
     dist_matrices = distance(physeq, method=c(input$distanceMethod))
     
     tres = WT.test(dist_matrices, 
-                   sample_data(physeq)[[input$mainFactor]],
+                   values$sampleMainFactor, 
                    sample_data(physeq)[[input$strataFactor]],
                    nrep = input$numPermutations)
 
-    message(str_c("Got response from WT.test"))
-    message(class(tres))
-    if(is.list(tres)) {
-        message(str_c("List WT.test ", str_c(names(tres), collapse=", ")))
+    if(!is.list(tres)) {
+      message(str_c("tres results invalid", class(tres)))
+      message(tres)
+      return(NULL)
     }
     tres
   })
   
-  output$statisticalTestsOutput <- renderText({
+  distTestOutput <- reactive({
+
+    tres = computeTres()
+
+    physeq <- physeqDataFactor()
+    dist_matrices = distance(physeq, method=c(input$distanceMethod))
+
+    tres$d = dist.cohen.d(dist_matrices, values$sampleMainFactor)
+    df <- data_frame(name=names(tres$d), value=tres$d)
+    df
+  })
+
+  statisticalTestOutput <- reactive({
+      tres = computeTres()
+  })
+  
+  output$statisticalTestsOutput <- renderTable({
     req(statisticalOutput(), input$runPermutations)
   
     isolate(statisticalOutput())
   })
+
+
+  output$results <- renderTable({
+    req(statisticalOutput(), input$runPermutations)
+  
+    isolate(distTestOutput())
+  })
   
   statisticalOutput <- eventReactive(input$runPermutations, {
-    print("statistical output run permutations:")
     st <- statisticalTestOutput()
     if(is.list(st)) {
-      vals <- map2_chr(names(st), st,  ~ str_c( .x, " = ", .y ))
-      str_c(vals, collapse = ", ")
-    } else {
-      str_c( st )
+      df <- data_frame(name=names(st), value=st)
     }
   })
 })

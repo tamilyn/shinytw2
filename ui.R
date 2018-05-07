@@ -18,5 +18,7 @@ shinyUI(fluidPage(
     ),
     
     mainPanel(plotOutput("plot"),
-              textOutput("statisticalTestsOutput")) #eeds to be isolated
-)))
+              fluidRow(column(5, offset = 1, tableOutput("observationCounts")),
+                       column(6, tableOutput("statisticalTestsOutput"))),
+              fluidRow(tableOutput("results"))
+   ))))
