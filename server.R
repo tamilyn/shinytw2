@@ -7,7 +7,7 @@ shinyServer(function(input, output) {
     infile = input$rawCountFile
     if(is.null(infile)) return(NULL)
 
-    asv = read.table(infile$datapath, row.names=1, sep = ",", check.names=F, header = T)
+    asv = read.table(infile$datapath, row.names = 1, sep = ",", check.names = FALSE, header = TRUE)
     return(t(asv))
   })
 
@@ -57,7 +57,6 @@ shinyServer(function(input, output) {
      req(input$mainFactor)
 
      physeq <- physeqData()
-     message(str_c("physeqDataFactor: ", input$mainFactor))
 
      # save main factor 
      values$sampleMainFactor = sample_data(physeq)[[input$mainFactor]]
@@ -81,19 +80,22 @@ shinyServer(function(input, output) {
      ordination_list = ordinate(physeq, method="MDS",
             distance = distanceMatrices())
 
+
      p <- plot_ordination(physeq = physeq,
          ordination = ordination_list,
          type = "samples",
          color = input$mainFactor ) +
          theme_minimal()
 
+     # doesn't work, should put the counts in the legend
+     # p <- p + scale_fill_brewer(labels = paste(levels(values$sampleMainFactor), 
+     #                                     table(values$sampleMainFactor))) 
+
      return(p)
   })
 
   observationCounts <- reactive({
     physeq <- physeqDataFactor()
-
-    #zz <- table(sample_data(physeq)[[input$mainFactor]], useNA="ifany")
 
     zz <- table(values$sampleMainFactor, useNA="ifany")
     df <- data_frame(value=names(zz), count=zz)
