@@ -86,10 +86,9 @@ shinyServer(function(input, output) {
          type = "samples",
          color = input$mainFactor ) +
          theme_minimal()
-
-     # doesn't work, should put the counts in the legend
-     # p <- p + scale_fill_brewer(labels = paste(levels(values$sampleMainFactor), 
-     #                                     table(values$sampleMainFactor))) 
+     
+     p <- p + scale_color_discrete(labels = paste(levels(values$sampleMainFactor), 
+                                          table(values$sampleMainFactor))) 
 
      return(p)
   })
