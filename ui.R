@@ -1,7 +1,7 @@
 shinyUI(fluidPage(
   
   # Application title
-  titlePanel("Shiny Tw2"),
+  titlePanel(HTML(paste("Shiny T", tags$sub("w"), tags$sup(2), sep = ""))),
   
   sidebarLayout(
     sidebarPanel(

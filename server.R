@@ -3,6 +3,7 @@ shinyServer(function(input, output) {
 
   values <- reactiveValues(sampleMainFactor = NULL)
 
+  # rawCountData ----
   rawCountData <- reactive({
     infile = input$rawCountFile
     if(is.null(infile)) return(NULL)
@@ -11,6 +12,7 @@ shinyServer(function(input, output) {
     return(t(asv))
   })
 
+  # sampleData ----
   sampleData <- reactive({
     infile = input$sampleDataFile
     if(is.null(infile)) return(NULL)
@@ -20,6 +22,7 @@ shinyServer(function(input, output) {
     return(sdata)
   })
 
+  # availableFactors ----
   availableFactors <- reactive({
       sd <- sampleData()
       if(!is.null(sd)) {
@@ -29,6 +32,7 @@ shinyServer(function(input, output) {
       }
   })
 
+  # output$mainFactor ----
   output$mainFactor = renderUI({
     af <- availableFactors()
     if(length(af) > 0) {
@@ -36,13 +40,15 @@ shinyServer(function(input, output) {
     }
   })
   
+  # output$strataFactor ----
   output$strataFactor = renderUI({
-    af <- availableFactors()
+    af <- append("None", availableFactors())
     if(length(af) > 0) {
       selectInput('strataFactor', 'Select strata factor', af )
     }
   })
 
+  # output$physeqData ----
   physeqData <- reactive({
      req(sampleData(), rawCountData())
 
@@ -53,6 +59,7 @@ shinyServer(function(input, output) {
   })
 
 
+  # physeqDataFactor ----
   physeqDataFactor <- reactive({
      req(input$mainFactor)
 
@@ -64,6 +71,7 @@ shinyServer(function(input, output) {
      physeq
   })
 
+  # distanceMatrices ----
   distanceMatrices <- reactive({
     req(physeqDataFactor())
     
@@ -71,6 +79,7 @@ shinyServer(function(input, output) {
     dist_matrices = distance(physeq, method=c(input$distanceMethod))
   })
   
+  # output$plot ----
   output$plot <- renderPlot({
      req(physeqDataFactor(), input$mainFactor)
 
@@ -93,18 +102,20 @@ shinyServer(function(input, output) {
      return(p)
   })
 
+  # observationCounts ----
   observationCounts <- reactive({
     physeq <- physeqDataFactor()
 
     zz <- table(values$sampleMainFactor, useNA="ifany")
-    df <- data_frame(value=names(zz), count=zz)
-    df
+    as_data_frame(zz)
   })
 
+  # output$observationCounts ----
   output$observationCounts  <- renderTable({
     observationCounts()
   })
 
+  # computeTres ----
   computeTres <- reactive({
 
     physeq <- physeqDataFactor()
@@ -123,39 +134,38 @@ shinyServer(function(input, output) {
     tres
   })
   
+  # distTestOutput ----
   distTestOutput <- reactive({
 
     tres = computeTres()
-
-    physeq <- physeqDataFactor()
-    dist_matrices = distance(physeq, method=c(input$distanceMethod))
+    dist_matrices = distance(physeqDataFactor(), method=c(input$distanceMethod))
 
     tres$d = dist.cohen.d(dist_matrices, values$sampleMainFactor)
-    df <- data_frame(name=names(tres$d), value=tres$d)
-    df
+    df <- as_data_frame(tres$d) %>% rename(dist_cohen_d = value)
   })
 
-  statisticalTestOutput <- reactive({
-      tres = computeTres()
-  })
   
+  # output$statisticalTestsOutput ----
   output$statisticalTestsOutput <- renderTable({
-    req(statisticalOutput(), input$runPermutations)
+    req(input$mainFactor, input$strataFactor, statisticalOutput(), input$runPermutations)
   
-    isolate(statisticalOutput())
-  })
+    #print(str_c("computing statistical ", input$strataFactor, input$mainFactor, sep = " "))
+    isolate(computeTres())
+  }, digits = 5)
 
-
+  
+  # output$results ----
   output$results <- renderTable({
     req(statisticalOutput(), input$runPermutations)
   
     isolate(distTestOutput())
-  })
+  }, digits = 5)
   
+  # statisticalOutput ----
   statisticalOutput <- eventReactive(input$runPermutations, {
-    st <- statisticalTestOutput()
+    st <- computeTres()
     if(is.list(st)) {
-      df <- data_frame(name=names(st), value=st)
+      df <- as_data_frame(st)
     }
   })
 })
