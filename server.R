@@ -1,7 +1,8 @@
-
 shinyServer(function(input, output) {
 
-  values <- reactiveValues(sampleMainFactor = NULL)
+  values <- reactiveValues(sampleMainFactor = NULL, 
+                           testsDT = data_frame(),
+                           resultsDT = NULL)
 
   # rawCountData ----
   rawCountData <- reactive({
@@ -115,6 +116,24 @@ shinyServer(function(input, output) {
     observationCounts()
   })
 
+  # computeTresFtn ----
+  computeTresFtn <- function(strata, mainf, dist) {
+
+    #print(glue::glue("strata {strata} main {mainf} dist {dist}"))
+
+    sdata <- sampleData()
+    asv.t <- rawCountData()
+
+    phyloseq( otu_table(asv.t, taxa_are_rows = F), sample_data(sdata))
+
+    physeq <- physeqData()
+    dist_matrices = distance(physeq, method = dist)
+    tres = WT.test(dist_matrices, 
+                   sample_data(physeq)[[mainf]],
+                   sample_data(physeq)[[strata]],
+                   nrep = input$numPermutations)
+  }
+
   # computeTres ----
   computeTres <- reactive({
 
@@ -167,5 +186,79 @@ shinyServer(function(input, output) {
     if(is.list(st)) {
       df <- as_data_frame(st)
     }
+  })
+
+  sayecho <- function(tid, strata, mainf, dist) {
+    status <- "SUCCESS"
+    err <- NULL
+    x <- tryCatch({
+            computeTresFtn(strata, mainf, dist) 
+    }, warning = function(w) {
+            print(glue::glue("warning: {w}"))
+            NULL
+    }, error = function(e) {
+            err = e
+            #print(glue::glue("error : {err}"))
+            NULL
+    })
+
+  if(!is.null(x)) {
+    data_frame(p.value = x[["p.value"]], 
+               nrep = x[["nrep"]],
+               main_factor = mainf,
+               test_id = tid,
+               dist_cohen_d = x[["t.stat"]],
+               status = "SUCCESS")
+  } else {
+    data_frame(p.value = 0, 
+               nrep = 0, 
+               main_factor = mainf,
+               test_id = tid,
+               dist_cohen_d = 0, 
+               status = str_c("ERROR: ", err))
+  }
+  }
+
+  # RUN TESTS BUTTON ----
+  observeEvent(input$runTestsBtn, {
+    w_df = map(1:nrow(values$testsDT), ~
+                sayecho(values$testsDT$test_id[.],
+                        values$testsDT$strata_factor[.],
+                        values$testsDT$main_factor[.],
+                        values$testsDT$distance[.]))  %>%
+    bind_rows()
+    values$resultsDT <-  w_df
+  })
+
+  # ADD TEST BUTTON ----
+  observeEvent(input$addTestBtn, {
+     req(input$mainFactor)
+     #browser()
+     aRow <- data_frame(test_id = input$addTestBtn,
+                        strata_factor = input$strataFactor,
+                        main_factor = input$mainFactor,
+                        distance = input$distanceMethod)
+     if(is.null(values$testsDT)) {
+       values$testsDT = aRow
+     } else {
+       newTable <- bind_rows(values$testsDT, aRow)
+       values$testsDT =  newTable
+     }
+  })
+
+  testsData <- reactive({
+     t <- values$testsDT 
+     t
+  })
+
+  resultsData <- reactive({
+    values$resultsDT
+  })
+
+  output$testTable <- renderDT({
+    datatable(testsData(), caption = "Tests to Run")
+  })
+  output$resultsTable <- renderDT({
+    datatable(resultsData(), caption = "Test Results")
   })
 })
