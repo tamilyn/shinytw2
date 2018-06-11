@@ -203,19 +203,24 @@ shinyServer(function(input, output) {
     })
 
   if(!is.null(x)) {
-    data_frame(p.value = x[["p.value"]], 
-               nrep = x[["nrep"]],
-               main_factor = mainf,
+    data_frame(
                test_id = tid,
+               strata_factor = strata,
+               main_factor = mainf,
+               p.value = x[["p.value"]], 
+               nrep = x[["nrep"]],
                dist_cohen_d = x[["t.stat"]],
                status = "SUCCESS")
   } else {
-    data_frame(p.value = 0, 
-               nrep = 0, 
-               main_factor = mainf,
+    print(glue::glue("error : {err}"))
+    data_frame(
                test_id = tid,
+               strata_factor = strata,
+               main_factor = mainf,
+               p.value = 0, 
+               nrep = 0, 
                dist_cohen_d = 0, 
-               status = str_c("ERROR: ", err))
+               status = str_c("ERROR"))
   }
   }
 
@@ -228,6 +233,14 @@ shinyServer(function(input, output) {
                         values$testsDT$distance[.]))  %>%
     bind_rows()
     values$resultsDT <-  w_df
+  })
+
+  # DELETE ROWS BUTTON ----
+  observeEvent(input$deleteRowsBtn, {
+    if(!is.null(input$testTable_rows_selected)) {
+      nn = as.numeric(input$testTable_rows_selected)
+      values$testsDT <- values$testsDT[-nn, ]
+    }
   })
 
   # ADD TEST BUTTON ----
@@ -259,6 +272,13 @@ shinyServer(function(input, output) {
     datatable(testsData(), caption = "Tests to Run")
   })
   output$resultsTable <- renderDT({
-    datatable(resultsData(), caption = "Test Results")
+      req(resultsData())
+      rd <- resultsData()
+      if(!is.null(rd) && nrow(rd) > 0) {
+        datatable(resultsData(), caption = "Test Results" ) %>%
+        formatStyle('status', 
+                    color = styleEqual(c("SUCCESS", "ERROR"), c("lightgreen","red")),
+                    backgroundColor = styleEqual(c("SUCCESS", "ERROR"), c("darkgreen","pink")))
+      }
   })
 })
