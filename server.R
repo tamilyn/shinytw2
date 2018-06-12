@@ -2,10 +2,12 @@ shinyServer(function(input, output) {
 
   values <- reactiveValues(sampleMainFactor = NULL, 
                            testsDT = data_frame(),
-                           resultsDT = NULL)
+                           resultsDT = NULL, 
+                           sdata = NULL,
+                           rcdata = NULL)
 
   # rawCountData ----
-  rawCountData <- reactive({
+  rawCountDataFromFile <- reactive({
     infile = input$rawCountFile
     if(is.null(infile)) return(NULL)
 
@@ -13,8 +15,16 @@ shinyServer(function(input, output) {
     return(t(asv))
   })
 
+  rawCountData <- reactive({
+     if(is.null(values$rcdata)) {
+       rawCountDataFromFile()
+     } else {
+       values$rcdata
+     }
+  })
+
   # sampleData ----
-  sampleData <- reactive({
+  sampleDataFromFile <- reactive({
     infile = input$sampleDataFile
     if(is.null(infile)) return(NULL)
 
@@ -22,6 +32,15 @@ shinyServer(function(input, output) {
     rownames(sdata) <- as.character(sdata$id_full)
     return(sdata)
   })
+
+  sampleData <- reactive({
+     if(is.null(values$sdata)) {
+       sampleDataFromFile()
+     } else {
+       values$sdata
+     }
+ })
+
 
   # availableFactors ----
   availableFactors <- reactive({
@@ -232,7 +251,13 @@ shinyServer(function(input, output) {
                         values$testsDT$main_factor[.],
                         values$testsDT$distance[.]))  %>%
     bind_rows()
-    values$resultsDT <-  w_df
+
+    a_df <- values$testsDT %>% 
+            select(test_id, distance) %>%
+            left_join(w_df, by="test_id")
+
+    values$testsDT <- a_df
+    #values$resultsDT <-  w_df
   })
 
   # DELETE ROWS BUTTON ----
@@ -246,11 +271,11 @@ shinyServer(function(input, output) {
   # ADD TEST BUTTON ----
   observeEvent(input$addTestBtn, {
      req(input$mainFactor)
-     #browser()
      aRow <- data_frame(test_id = input$addTestBtn,
                         strata_factor = input$strataFactor,
                         main_factor = input$mainFactor,
-                        distance = input$distanceMethod)
+                        distance = input$distanceMethod,
+                        status = "not run")
      if(is.null(values$testsDT)) {
        values$testsDT = aRow
      } else {
@@ -268,9 +293,22 @@ shinyServer(function(input, output) {
     values$resultsDT
   })
 
-  output$testTable <- renderDT({
-    datatable(testsData(), caption = "Tests to Run")
+  output$numTests <- reactive({
+    td <- testsData()
+    if(is.null(td)) {
+       0
+    } else {
+       nrow(td)
+    }
   })
+
+  output$testTable <- renderDT({
+    datatable(testsData(), caption = "Tests to Run") %>%
+        formatStyle('status', 
+                    color = styleEqual(c("SUCCESS", "ERROR"), c("lightgreen","red")),
+                    backgroundColor = styleEqual(c("SUCCESS", "ERROR"), c("darkgreen","pink")))
+  })
+
   output$resultsTable <- renderDT({
       req(resultsData())
       rd <- resultsData()
@@ -280,5 +318,45 @@ shinyServer(function(input, output) {
                     color = styleEqual(c("SUCCESS", "ERROR"), c("lightgreen","red")),
                     backgroundColor = styleEqual(c("SUCCESS", "ERROR"), c("darkgreen","pink")))
       }
+  })
+  
+  observeEvent(input$button, {
+    toggle("hello")
+  })
+  
+  allDataAvailable <- reactive({
+    if (!is.null(sampleData()) && 
+        !is.null(rawCountData())) {
+      shinyjs::show("testcontrols")
+      shinyjs::hide("loaddata")
+      shinyjs::show("plot")
+      return(TRUE)
+    } else {
+      shinyjs::hide("testcontrols")
+      shinyjs::show("loaddata")
+      return(FALSE)
+    }
+  })
+
+  output$dataLoaded <- renderText({
+    if (allDataAvailable()) { "data loaded"}
+    else {""}
+  })
+  
+  # LOAD DEMO DATA BUTTON ----
+  observeEvent(input$loadDemoDataBtn, {
+    sdata = read.csv("data/sample_data.csv")
+    rownames(sdata) <- as.character(sdata$id_full)
+    values$sdata = sdata
+
+    asv = read.table("data/raw_count.csv", row.names = 1, sep = ",", check.names = FALSE, header = TRUE)
+    rcdata = t(asv)
+    values$rcdata = rcdata
+  })
+
+  # CLEAR DEMO DATA BUTTON ----
+  observeEvent(input$clearDataBtn, {
+    values$sdata = NULL
+    values$rcdata = NULL
   })
 })

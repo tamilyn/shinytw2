@@ -21,11 +21,22 @@ table.dataTable {
 }
 
 .skin-purple .sidebar-menu > li.active > a, .skin-purple .sidebar-menu {
-  background-color: lavender ; 
-  color: rebeccapurple;
 }
 
 .skin-purple .sidebar-menu > li.active  > a {
   background-color: #555299;
   color: white;
+}
+
+.skin-purple .left-side, .skin-purple .main-sidebar, .skin-purple .wrapper {
+  background-color: #555299;
+}
+
+#numTests, #dataLoaded {
+  background-color: #555299;
+  color: #555299;
+  //background-color: lavender ; 
+  //color: rebeccapurple;
+  //color: yellow;
+  margin-left: 20px;
 }
